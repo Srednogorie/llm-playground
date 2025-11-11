@@ -1,0 +1,45 @@
+volumes:
+  langgraph-data:
+    driver: local
+services:
+  langgraph-redis:
+    image: redis:6
+    healthcheck:
+      test: redis-cli ping
+      interval: 5s
+      timeout: 1s
+      retries: 5
+    ports:
+      - "6379:6379"
+  langgraph-postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file: .env
+    volumes:
+      - langgraph-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      start_period: 10s
+      timeout: 1s
+      retries: 5
+      interval: 5s
+  langgraph-api:
+    image: "local-langgraph-api"
+    ports:
+      - "8123:8000"
+    depends_on:
+      langgraph-redis:
+        condition: service_healthy
+      langgraph-postgres:
+        condition: service_healthy
+    environment:
+      REDIS_URI: ${REDIS_URI}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      POSTGRES_URI: ${POSTGRES_URI}
+    env_file: .env

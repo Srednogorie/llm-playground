@@ -31,8 +31,20 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
+// import { useMessage } from "@assistant-ui/react";
+import { useThread } from "@assistant-ui/react";
+// import { useAssistantRuntime } from "@assistant-ui/react";
+// import { useMessagePart } from "@assistant-ui/react";
 
 export const Thread: FC = () => {
+  // const msg = useMessage();
+  const thread = useThread();
+  console.log(thread);
+  // const runtime = useAssistantRuntime();
+  // console.log(runtime);
+  // console.log(msg);
+  // const part = useMessagePart();
+  // console.log(part);
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -52,6 +64,7 @@ export const Thread: FC = () => {
                 AssistantMessage,
               }}
             />
+
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
             </ThreadPrimitive.If>
@@ -245,7 +258,7 @@ const AssistantMessage: FC = () => {
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
           <MessagePrimitive.Parts
             components={{
-              Text: MarkdownText,
+              Text: ({ text }) => <p className="message-text">{text}</p>,
               tools: { Fallback: ToolFallback },
             }}
           />

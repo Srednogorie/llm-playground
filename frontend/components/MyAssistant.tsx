@@ -1,39 +1,67 @@
 "use client";
 
-import { useRef } from "react";
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import { useLangGraphRuntime } from "@assistant-ui/react-langgraph";
-
-import { createThread, getThreadState, sendMessage } from "@/lib/chatApi";
+import { ReactNode } from "react";
+import {
+  AssistantRuntimeProvider,
+  ChatModelAdapter,
+  useLocalRuntime,
+} from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
 
-export function MyAssistant() {
-  const threadIdRef = useRef<string | undefined>(undefined);
-  const runtime = useLangGraphRuntime({
-    threadId: threadIdRef.current,
-    stream: async (messages, { command }) => {
-      if (!threadIdRef.current) {
-        const { thread_id } = await createThread();
-        threadIdRef.current = thread_id;
-      }
-      const threadId = threadIdRef.current;
-      return sendMessage({
-        threadId,
-        messages,
-        command,
-      });
-    },
-    onSwitchToNewThread: async () => {
-      const { thread_id } = await createThread();
-      threadIdRef.current = thread_id;
-    },
-    onSwitchToThread: async (threadId) => {
-      const state = await getThreadState(threadId);
-      threadIdRef.current = threadId;
-      return { messages: state.values.messages };
-    },
-  });
-
+const MyModelAdapter: ChatModelAdapter = {
+  async run({ messages, abortSignal }) {
+    console.log(messages);
+    const req_body = {
+      assistant_id: "agent",
+      input: {
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.content[0].text,
+        })),
+      },
+      context: {},
+    };
+    console.log(req_body);
+    // TODO replace with your own API
+    const result = await fetch("http://127.0.0.1:8123/runs/wait", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      // forward the messages in the chat to the API
+      body: JSON.stringify(req_body),
+      // if the user hits the "cancel" button or escape keyboard key, cancel the request
+      signal: abortSignal,
+    });
+    const data = await result.json();
+    console.log(data);
+    return {
+      content: [
+        {
+          type: "text",
+          text: data.messages[data.messages.length - 1].content,
+        },
+      ],
+      metadata: {
+        custom: {
+          input_tokens:
+            data.messages[data.messages.length - 1].usage_metadata.input_tokens,
+          output_tokens:
+            data.messages[data.messages.length - 1].usage_metadata
+              .output_tokens,
+          total_tokens:
+            data.messages[data.messages.length - 1].usage_metadata.total_tokens,
+        },
+      },
+    };
+  },
+};
+export function MyAssistant({
+  children,
+}: Readonly<{
+  children: ReactNode;
+}>) {
+  const runtime = useLocalRuntime(MyModelAdapter);
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <Thread />

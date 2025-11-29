@@ -5,6 +5,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAssistantState,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
@@ -24,27 +25,14 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
 import * as m from "motion/react-m";
-// import { useMessage } from "@assistant-ui/react";
-import { useThread } from "@assistant-ui/react";
-// import { useAssistantRuntime } from "@assistant-ui/react";
-// import { useMessagePart } from "@assistant-ui/react";
 
 export const Thread: FC = () => {
-  // const msg = useMessage();
-  const thread = useThread();
-  console.log(thread);
-  // const runtime = useAssistantRuntime();
-  // console.log(runtime);
-  // console.log(msg);
-  // const part = useMessagePart();
-  // console.log(part);
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -249,6 +237,7 @@ const MessageError: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const metadata = useAssistantState(({ message }) => message.metadata);
   return (
     <MessagePrimitive.Root asChild>
       <div
@@ -258,7 +247,22 @@ const AssistantMessage: FC = () => {
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
           <MessagePrimitive.Parts
             components={{
-              Text: ({ text }) => <p className="message-text">{text}</p>,
+              Text: ({ text }) => {
+                return (
+                  <div>
+                    <p className="message-text">{text}</p>
+                    <p>
+                      <span className="mr-2.5">
+                        Input Tokens: {metadata.custom?.input_tokens}
+                      </span>
+                      <span className="mr-2.5">
+                        Output Tokens: {metadata.custom?.output_tokens}
+                      </span>
+                      <span>Total Tokens: {metadata.custom?.total_tokens}</span>
+                    </p>
+                  </div>
+                );
+              },
               tools: { Fallback: ToolFallback },
             }}
           />

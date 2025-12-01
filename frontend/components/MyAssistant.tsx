@@ -1,14 +1,15 @@
 "use client";
-
-import { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
   ChatModelAdapter,
   useLocalRuntime,
 } from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
+import { useSettings } from "@/lib/SettingsContext";
 
-const MyModelAdapter: ChatModelAdapter = {
+const MyModelAdapter = (temperature: number): ChatModelAdapter => (
+  console.log(temperature),
+  {
   async run({ messages, abortSignal }) {
     console.log(messages);
     const req_body = {
@@ -19,7 +20,9 @@ const MyModelAdapter: ChatModelAdapter = {
           content: message.content[0].text,
         })),
       },
-      context: {},
+      context: {
+        temperature,
+      },
     };
     console.log(req_body);
     // TODO replace with your own API
@@ -44,24 +47,18 @@ const MyModelAdapter: ChatModelAdapter = {
       ],
       metadata: {
         custom: {
-          input_tokens:
-            data.messages[data.messages.length - 1].usage_metadata.input_tokens,
-          output_tokens:
-            data.messages[data.messages.length - 1].usage_metadata
-              .output_tokens,
-          total_tokens:
-            data.messages[data.messages.length - 1].usage_metadata.total_tokens,
+          input_tokens: data.messages[data.messages.length - 1].usage_metadata.input_tokens,
+          output_tokens: data.messages[data.messages.length - 1].usage_metadata.output_tokens,
+          total_tokens: data.messages[data.messages.length - 1].usage_metadata.total_tokens,
         },
       },
     };
   },
-};
-export function MyAssistant({
-  children,
-}: Readonly<{
-  children: ReactNode;
-}>) {
-  const runtime = useLocalRuntime(MyModelAdapter);
+});
+
+export function MyAssistant() {
+  const { settings } = useSettings();
+  const runtime = useLocalRuntime(MyModelAdapter(settings.temperature))
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <Thread />

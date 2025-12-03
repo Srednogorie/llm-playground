@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from socket import timeout
 
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage
@@ -12,8 +11,6 @@ class ContextSchema:
     model: str
     temperature: float
     max_tokens: int
-    timeout: int
-    max_retries: int
 
 
 model = init_chat_model()
@@ -29,7 +26,13 @@ def llm_call(state: dict, runtime: Runtime[ContextSchema]):
                     )
                 ]
                 + state["messages"],
-                config={"configurable": {"model": "gpt-4.1-nano", "temperature": runtime.context.temperature}}
+                config={
+                    "configurable": {
+                        "model": runtime.context.model,
+                        "temperature": runtime.context.temperature,
+                        "max_tokens": runtime.context.max_tokens
+                    }
+                }
             )
         ]
     }

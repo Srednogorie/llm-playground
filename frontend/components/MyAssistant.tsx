@@ -7,11 +7,8 @@ import {
 import { Thread } from "@/components/assistant-ui/thread";
 import { useSettings } from "@/lib/SettingsContext";
 
-const MyModelAdapter = (temperature: number): ChatModelAdapter => (
-  console.log(temperature),
-  {
+const MyModelAdapter = (temperature: number, max_tokens: number): ChatModelAdapter => ({
   async run({ messages, abortSignal }) {
-    console.log(messages);
     const req_body = {
       assistant_id: "agent",
       input: {
@@ -20,9 +17,7 @@ const MyModelAdapter = (temperature: number): ChatModelAdapter => (
           content: message.content[0].text,
         })),
       },
-      context: {
-        temperature,
-      },
+      context: {temperature, max_tokens},
     };
     console.log(req_body);
     // TODO replace with your own API
@@ -58,7 +53,7 @@ const MyModelAdapter = (temperature: number): ChatModelAdapter => (
 
 export function MyAssistant() {
   const { settings } = useSettings();
-  const runtime = useLocalRuntime(MyModelAdapter(settings.temperature))
+  const runtime = useLocalRuntime(MyModelAdapter(settings.temperature, settings.max_tokens))
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <Thread />

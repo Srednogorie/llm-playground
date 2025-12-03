@@ -2,12 +2,14 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
 interface Settings {
+  model: string;
   temperature: number;
   maxTokens: number;
 }
 
 interface SettingsContextType {
   settings: Settings;
+  updateModel: (model: string) => void;
   updateTemperature: (temperature: number) => void;
   updateMaxTokens: (maxTokens: number) => void;
 }
@@ -16,9 +18,14 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>({
+    model: "gpt-4.1-nano", // default value
     temperature: 0.7, // default value
     maxTokens: 100, // default value
   });
+
+  const updateModel = (model: string) => {
+    setSettings((prev) => ({ ...prev, model }));
+  };
 
   const updateTemperature = (temperature: number) => {
     setSettings((prev) => ({ ...prev, temperature }));
@@ -29,7 +36,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateTemperature, updateMaxTokens }}>
+    <SettingsContext.Provider value={{ settings, updateModel, updateTemperature, updateMaxTokens }}>
       {children}
     </SettingsContext.Provider>
   );

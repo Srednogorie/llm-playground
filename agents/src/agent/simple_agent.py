@@ -2,26 +2,23 @@ from dataclasses import dataclass
 
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage
-from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.runtime import Runtime
 
 
 @dataclass
 class ContextSchema:
-    model: str = "gpt-4.1-nano"
-    temperature: float = 0.7
-    max_tokens: int = 1024
+    model: str
+    temperature: float
+    max_tokens: int
 
 
 model = init_chat_model(configurable_fields="any")
 
 
 def llm_call(state: dict, runtime: Runtime[ContextSchema]):
-    # if runtime.context.model in ["gpt-4.1-nano", "claude-3-haiku-20240307"]:
-    if True:
+    if runtime.context.model in ["gpt-4.1-nano", "claude-3-haiku-20240307"]:
         return {
             "messages": [
                 model.invoke(
@@ -33,17 +30,17 @@ def llm_call(state: dict, runtime: Runtime[ContextSchema]):
                     + state["messages"],
                     config={
                         "configurable": {
-                            "model": "gpt-4.1-nano",
-                            # "temperature": runtime.context.temperature,
-                            # "max_tokens": runtime.context.max_tokens
+                            "model": runtime.context.model,
+                            "temperature": runtime.context.temperature,
+                            "max_tokens": runtime.context.max_tokens
                         }
                     }
                 )
             ]
         }
-    elif runtime.context.model == "ollama:gemma3:1b":
+    elif runtime.context.model == "gemma3:1b":
         ollama_model = ChatOllama(
-            model="gemma3:1b",
+            model=runtime.context.model,
             temperature=runtime.context.temperature,
             num_predict=runtime.context.max_tokens,
             base_url="http://172.20.0.1:11434"

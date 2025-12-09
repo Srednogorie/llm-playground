@@ -35,6 +35,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 function StickyToBottomContent(props: {
   content: ReactNode;
@@ -105,6 +112,11 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
+  const [selectedModel, setSelectedModel] = useState("gemma3:1b");
+  const [maxTokens, setMaxTokens] = useState(250);
+  const [temperature, setTemperature] = useState(0.7);
+  // const [selectedModel, setSelectedModel] = useQueryState("selectedModel", { defaultValue: "gemma3:1b" });
+  // const [maxTokens, setMaxTokens] = useQueryState("maxTokens", { defaultValue: "250" });
   const [input, setInput] = useState("");
   const [firstTokenReceived, setFirstTokenReceived] = useState(false);
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
@@ -181,6 +193,11 @@ export function Thread() {
             newHumanMessage,
           ],
         }),
+        context: {
+          model: selectedModel,
+          temperature,
+          max_tokens: maxTokens,
+        }
       },
     );
 
@@ -321,128 +338,179 @@ export function Thread() {
               </TooltipIconButton>
             </div>
 
-            <div className="absolute inset-x-0 top-full h-5 bg-gradient-to-b from-background to-background/0" />
+            <div className="absolute inset-x-0 top-full h-5" />
           </div>
         )}
-
-        <StickToBottom className="relative flex-1 overflow-hidden">
-          <StickyToBottomContent
-            className={cn(
-              "absolute px-4 inset-0 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent",
-              !chatStarted && "flex flex-col items-stretch mt-[25vh]",
-              chatStarted && "grid grid-rows-[1fr_auto]",
-            )}
-            contentClassName="pt-8 pb-16  max-w-3xl mx-auto flex flex-col gap-4 w-full"
-            content={
-              <>
-                {messages
-                  .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
-                  .map((message, index) =>
-                    message.type === "human" ? (
-                      <HumanMessage
-                        key={message.id || `${message.type}-${index}`}
-                        message={message}
-                        isLoading={isLoading}
-                      />
-                    ) : (
-                      <AssistantMessage
-                        key={message.id || `${message.type}-${index}`}
-                        message={message}
-                        isLoading={isLoading}
-                        handleRegenerate={handleRegenerate}
-                      />
-                    ),
-                  )}
-                {/* Special rendering case where there are no AI/tool messages, but there is an interrupt.
-                    We need to render it outside of the messages list, since there are no messages to render */}
-                {hasNoAIOrToolMessages && !!stream.interrupt && (
-                  <AssistantMessage
-                    key="interrupt-msg"
-                    message={undefined}
-                    isLoading={isLoading}
-                    handleRegenerate={handleRegenerate}
-                  />
-                )}
-                {isLoading && !firstTokenReceived && (
-                  <AssistantMessageLoading />
-                )}
-              </>
-            }
-            footer={
-              <div className="sticky flex flex-col items-center gap-8 bottom-0 bg-white">
-                {!chatStarted && (
-                  <div className="flex gap-3 items-center">
-                    <LangGraphLogoSVG className="flex-shrink-0 h-8" />
-                    <h1 className="text-2xl font-semibold tracking-tight">
-                      Agent Chat
-                    </h1>
-                  </div>
-                )}
-
-                <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 animate-in fade-in-0 zoom-in-95" />
-
-                <div className="bg-muted rounded-2xl border shadow-xs mx-auto mb-8 w-full max-w-3xl relative z-10">
-                  <form
-                    onSubmit={handleSubmit}
-                    className="grid grid-rows-[1fr_auto] gap-2 max-w-3xl mx-auto"
-                  >
-                    <textarea
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === "Enter" &&
-                          !e.shiftKey &&
-                          !e.metaKey &&
-                          !e.nativeEvent.isComposing
-                        ) {
-                          e.preventDefault();
-                          const el = e.target as HTMLElement | undefined;
-                          const form = el?.closest("form");
-                          form?.requestSubmit();
-                        }
-                      }}
-                      placeholder="Type your message..."
-                      className="p-3.5 pb-0 border-none bg-transparent field-sizing-content shadow-none ring-0 outline-none focus:outline-none focus:ring-0 resize-none"
-                    />
-
-                    <div className="flex items-center justify-between p-2 pt-4">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="render-tool-calls"
-                            checked={hideToolCalls ?? false}
-                            onCheckedChange={setHideToolCalls}
-                          />
-                          <Label
-                            htmlFor="render-tool-calls"
-                            className="text-sm text-gray-600"
-                          >
-                            Hide Tool Calls
-                          </Label>
-                        </div>
-                      </div>
-                      {stream.isLoading ? (
-                        <Button key="stop" onClick={() => stream.stop()}>
-                          <LoaderCircle className="w-4 h-4 animate-spin" />
-                          Cancel
-                        </Button>
+        <div className="flex gap-4 h-full overflow-hidden flex-1">
+          <StickToBottom className="relative flex-1 overflow-hidden">
+            <StickyToBottomContent
+              className={cn(
+                "absolute px-4 inset-0 overflow-y-scroll [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent",
+                "flex-1 basis-2/3 min-w-0",  // Add these
+                !chatStarted && "flex flex-col items-stretch mt-[25vh]",
+                chatStarted && "grid grid-rows-[1fr_auto]",
+              )}
+              contentClassName="pt-8 pb-16  max-w-3xl mx-auto flex flex-col gap-4 w-full"
+              content={
+                <>
+                  {messages
+                    .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
+                    .map((message, index) =>
+                      message.type === "human" ? (
+                        <HumanMessage
+                          key={message.id || `${message.type}-${index}`}
+                          message={message}
+                          isLoading={isLoading}
+                        />
                       ) : (
-                        <Button
-                          type="submit"
-                          className="transition-all shadow-md"
-                          disabled={isLoading || !input.trim()}
-                        >
-                          Send
-                        </Button>
-                      )}
+                        <AssistantMessage
+                          key={message.id || `${message.type}-${index}`}
+                          message={message}
+                          isLoading={isLoading}
+                          handleRegenerate={handleRegenerate}
+                        />
+                      ),
+                    )}
+                  {/* Special rendering case where there are no AI/tool messages, but there is an interrupt.
+                      We need to render it outside of the messages list, since there are no messages to render */}
+                  {hasNoAIOrToolMessages && !!stream.interrupt && (
+                    <AssistantMessage
+                      key="interrupt-msg"
+                      message={undefined}
+                      isLoading={isLoading}
+                      handleRegenerate={handleRegenerate}
+                    />
+                  )}
+                  {isLoading && !firstTokenReceived && (
+                    <AssistantMessageLoading />
+                  )}
+                </>
+              }
+              footer={
+                <div className="sticky flex flex-col items-center gap-8 bottom-0 bg-white">
+                  {!chatStarted && (
+                    <div className="flex gap-3 items-center">
+                      <LangGraphLogoSVG className="flex-shrink-0 h-8" />
+                      <h1 className="text-2xl font-semibold tracking-tight">
+                        Agent Chat
+                      </h1>
                     </div>
-                  </form>
+                  )}
+  
+                  <ScrollToBottom className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 animate-in fade-in-0 zoom-in-95" />
+  
+                  <div className="bg-muted rounded-2xl border shadow-xs mx-auto mb-8 w-full max-w-3xl relative z-10">
+                    <form
+                      onSubmit={handleSubmit}
+                      className="grid grid-rows-[1fr_auto] gap-2 max-w-3xl mx-auto"
+                    >
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            !e.shiftKey &&
+                            !e.metaKey &&
+                            !e.nativeEvent.isComposing
+                          ) {
+                            e.preventDefault();
+                            const el = e.target as HTMLElement | undefined;
+                            const form = el?.closest("form");
+                            form?.requestSubmit();
+                          }
+                        }}
+                        placeholder="Type your message..."
+                        className="p-3.5 pb-0 border-none bg-transparent field-sizing-content shadow-none ring-0 outline-none focus:outline-none focus:ring-0 resize-none"
+                      />
+  
+                      <div className="flex items-center justify-between p-2 pt-4">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="render-tool-calls"
+                              checked={hideToolCalls ?? false}
+                              onCheckedChange={setHideToolCalls}
+                            />
+                            <Label
+                              htmlFor="render-tool-calls"
+                              className="text-sm text-gray-600"
+                            >
+                              Hide Tool Calls
+                            </Label>
+                          </div>
+                        </div>
+                        {stream.isLoading ? (
+                          <Button key="stop" onClick={() => stream.stop()}>
+                            <LoaderCircle className="w-4 h-4 animate-spin" />
+                            Cancel
+                          </Button>
+                        ) : (
+                          <Button
+                            type="submit"
+                            className="transition-all shadow-md"
+                            disabled={isLoading || !input.trim()}
+                          >
+                            Send
+                          </Button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              }
+            />
+          </StickToBottom>
+          <div className="basis-1/4 overflow-auto  bg-gray-50">
+            <div className="p-4">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Select a model</label>
+                  <Select value={selectedModel || ""} onValueChange={setSelectedModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an option..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemma3:1b">Gemma 3 1B</SelectItem>
+                      <SelectItem value="gpt-4.1-nano">GPT 4.1 Nano</SelectItem>
+                      <SelectItem value="claude-3-haiku-20240307">Haiko 3</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            }
-          />
-        </StickToBottom>
+            </div>
+            <div className="p-4">
+              <label className="text-sm font-medium mb-2 block">Temperature</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                />
+                <span className="text-sm font-medium w-12 text-right">{temperature.toFixed(1)}</span>
+              </div>
+            </div>
+            <div className="p-4">
+              <label className="text-sm font-medium mb-2 block">Max Tokens</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="10"
+                  max="1000"
+                  step="5"
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(Number(e.target.value))}
+                />
+                <span className="text-sm font-medium w-12 text-right">{maxTokens}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </motion.div>
     </div>
   );

@@ -509,6 +509,20 @@ export function Thread() {
                 <span className="text-sm font-medium w-12 text-right">{maxTokens}</span>
               </div>
             </div>
+            <div className="p-4">
+              <p>Last AI Message Usage Metadata</p>
+              {messages && (() => {
+                const lastAiMessage = messages.findLast((msg) => msg.type === "ai");
+                if (!lastAiMessage || !lastAiMessage.usage_metadata) return null;
+                return (
+                  <div>
+                    <p>Input Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.input_tokens}</span></p>
+                    <p>Output Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.output_tokens}</span></p>
+                    <p>Total Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.total_tokens}</span></p>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
       </motion.div>

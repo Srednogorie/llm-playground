@@ -19,6 +19,7 @@ interface ThreadContextType {
   setThreads: Dispatch<SetStateAction<Thread[]>>;
   threadsLoading: boolean;
   setThreadsLoading: Dispatch<SetStateAction<boolean>>;
+  deleteThread: (threadId: string) => Promise<void>;
 }
 
 const ThreadContext = createContext<ThreadContextType | undefined>(undefined);
@@ -52,6 +53,13 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
 
     return threads;
   }, [apiUrl, assistantId]);
+  
+  const deleteThread = useCallback(async (threadId: string) => {
+    if (!apiUrl || !assistantId) return;
+    const client = createClient(apiUrl, getApiKey() ?? undefined);
+
+    await client.threads.delete(threadId);
+  }, [apiUrl, assistantId]);
 
   const value = {
     getThreads,
@@ -59,6 +67,7 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     setThreads,
     threadsLoading,
     setThreadsLoading,
+    deleteThread,
   };
 
   return (

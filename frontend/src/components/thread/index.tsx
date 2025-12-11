@@ -390,7 +390,7 @@ export function Thread() {
                 <div className="sticky flex flex-col items-center gap-8 bottom-0 bg-white">
                   {!chatStarted && (
                     <div className="flex gap-3 items-center">
-                      <LangGraphLogoSVG className="flex-shrink-0 h-8" />
+                      <LangGraphLogoSVG className="shrink-0 h-8" />
                       <h1 className="text-2xl font-semibold tracking-tight">
                         Agent Chat
                       </h1>

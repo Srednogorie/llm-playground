@@ -113,6 +113,8 @@ export function Thread() {
     parseAsBoolean.withDefault(false),
   );
   const [selectedModel, setSelectedModel] = useState("gemma3:1b");
+  const [messagesStrategy, setMessagesStrategy] = useState("delete");
+  const [messageStrategyNumber, setMessageStrategyNumber] = useState(1);
   const [maxTokens, setMaxTokens] = useState(250);
   const [temperature, setTemperature] = useState(0.7);
   // const [selectedModel, setSelectedModel] = useQueryState("selectedModel", { defaultValue: "gemma3:1b" });
@@ -197,6 +199,8 @@ export function Thread() {
           model: selectedModel,
           temperature,
           max_tokens: maxTokens,
+          messages_strategy: messagesStrategy,
+          message_strategy_number: messageStrategyNumber,
         }
       },
     );
@@ -510,7 +514,7 @@ export function Thread() {
               </div>
             </div>
             <div className="p-4">
-              <p>Last AI Message Usage Metadata</p>
+              <label className="text-sm font-medium block">Last AI Message Usage Metadata</label>
               {messages && (() => {
                 const lastAiMessage = messages.findLast((msg) => msg.type === "ai");
                 if (!lastAiMessage || !lastAiMessage.usage_metadata) return null;
@@ -522,6 +526,28 @@ export function Thread() {
                   </div>
                 );
               })()}
+            </div>
+            <div className="p-4">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block">Select Messages Strategy</label>
+                  <p className="text-xs text-gray-500 pb-2">Delete and Filter use lats strategy and require a number.</p>
+                  <Select value={messagesStrategy || ""} onValueChange={setMessagesStrategy}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an option..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="delete">Delete</SelectItem>
+                      <SelectItem value="trim_count">Trim count</SelectItem>
+                      <SelectItem value="trim_tokens">Trim tokens</SelectItem>
+                      <SelectItem value="summarize">Summarize</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <div className="pl-4 pr-4">
+              <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyNumber(Number(e.target.value))} value={messageStrategyNumber} />
             </div>
           </div>
         </div>

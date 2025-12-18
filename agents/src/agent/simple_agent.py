@@ -21,26 +21,21 @@ class ContextSchema:
     temperature: float
     max_tokens: int
     messages_strategy: Literal["delete", "trim_count", "trim_tokens", "summarize"]
-    message_strategy_number: int
+    message_strategy_keep: int
+    message_strategy_summarize: int
 
 
 model = init_chat_model(configurable_fields="any")
 
 
-def call_llm(runtime, summary_message, messages):
-    system_message = [
-        SystemMessage(
-            content=(
-                "You are a helpful assistant tasked with performing arithmetic on a set of inputs."
-                f"{summary_message}"
-            )
-        )
-    ]
+def call_llm(runtime, system_message, messages, use_system_message):
+    if use_system_message:
+        messages = system_message + messages
     if runtime.context.model in ["gpt-4.1-nano", "claude-3-haiku-20240307"]:
         return {
             "messages": [
                 model.invoke(
-                    system_message + messages,
+                    messages,
                     config={
                         "configurable": {
                             "model": runtime.context.model,
@@ -59,34 +54,35 @@ def call_llm(runtime, summary_message, messages):
             base_url="http://172.20.0.1:11434"
         )
         return {
-            "messages": [
-                ollama_model.invoke(system_message + messages)
-            ]
+            "messages": [ollama_model.invoke(system_message + messages)]
         }
 
 
 def apply_messages_strategy(state: State, runtime: Runtime[ContextSchema]):
     """We separate the message state and the messages that are passed to the LLM.
     
-    This is somehow important, especially if we want to keep the messages in the state/thread but pass to the model
+    This is somewhat important, especially if we want to keep the messages in the state/thread but pass to the model
     only subset of them, for example the last n.
     """
-    # Delete all but the n most recent messages. This is raw, it's going to delete the messages from the state/thread.
-    response = {"messages": state["messages"], "llm_input_messages": state.get("llm_input_messages", [])}
+    response = {
+        "messages": state["messages"],
+        "llm_input_messages": state["messages"],
+        "summary": state.get("summary", ""),
+    }
     if runtime.context.messages_strategy == "delete":
         messages = [
             RemoveMessage(id=m.id) if m.id else m
-            for m in state["messages"][:-runtime.context.message_strategy_number]
+            for m in state["messages"][:-runtime.context.message_strategy_keep]
         ]
         # We are deleting messages from the state/thread so we need to return the updated state
         response["messages"] = messages
-        response["llm_input_messages"] = [m for m in state["messages"][-runtime.context.message_strategy_number:]]
+        response["llm_input_messages"] = [m for m in state["messages"][-runtime.context.message_strategy_keep:]]
     elif runtime.context.messages_strategy == "trim_tokens":
         messages = trim_messages(
             state["messages"],
             strategy="last",
             token_counter=count_tokens_approximately,
-            max_tokens=runtime.context.message_strategy_number,
+            max_tokens=runtime.context.message_strategy_keep,
             start_on="human",
             end_on=("human", "tool"),
         )
@@ -96,11 +92,18 @@ def apply_messages_strategy(state: State, runtime: Runtime[ContextSchema]):
             state["messages"],
             strategy="last",
             token_counter=len,
-            max_tokens=runtime.context.message_strategy_number,
+            max_tokens=runtime.context.message_strategy_keep,
             start_on="human",
             end_on=("human", "tool"),
         )
         response["llm_input_messages"] = messages
+    elif runtime.context.messages_strategy == "summarize":
+        if len(state["messages"]) > runtime.context.message_strategy_summarize:
+            summary = summarize_conversation(state, runtime)
+            response["messages"] = summary["messages"]
+            response["llm_input_messages"] = summary["llm_input_messages"]
+            response["summary"] = summary["summary"]
+    
     return response
 
 
@@ -108,48 +111,50 @@ def summarize_conversation(state: State, runtime: Runtime[ContextSchema]):
     summary = state.get("summary", "")
     if summary:
         summary_message = (
-            f"This is the summary of the conversation to date: {summary} \n\n"
+            f"This is summary of the conversation to date: {summary}\n\n"
             "Extend the summary by taking into account the new messages above:"
         )
     else:
         summary_message = "Create a summary of the conversation above:"
     
-    messages = state["messages"] + [HumanMessage(content=summary_message)]
-    response = model.invoke(messages)
+    response = call_llm(
+        runtime, None, state["messages"] + [HumanMessage(content=summary_message)], use_system_message=False)
     
     delete_messages = [
-        RemoveMessage(id=m.id) if m.id else m for m in state["messages"][:-runtime.context.message_strategy_number - 1]
+        RemoveMessage(id=m.id) if m.id else m for m in state["messages"][:-runtime.context.message_strategy_keep]
     ]
-    return {"messages": delete_messages, "summary": response.content}
+    return {
+        "messages": delete_messages,
+        "llm_input_messages": [m for m in state["messages"][-runtime.context.message_strategy_keep:]],
+        "summary": response["messages"][-1].content if response is not None else "",
+    }
 
 
 def should_summarize(state: State, runtime: Runtime[ContextSchema]):
-    # messages = state["messages"]
-    # if len(messages) > 6:
+    # if len(state["messages"]) > 6:
     #     return "summarize_conversation"
     return END
 
 
 def conversation(state: State, runtime: Runtime[ContextSchema]):
-    # elif runtime.context.messages_strategy == "summarize":
-    #     messages = summarize_messages(
-    #         state["messages"],
-    #         strategy="last",
-    #         token_counter=count_tokens_approximately,
-    #         max_tokens=20,
-    #         start_on="human",
-    #         end_on=("human", "tool"),
-    #     )
-        
     summary = state.get("summary", "")
     if summary:
         summary_message = f"Summary of the conversation so far: {summary}"
     else:
         summary_message = ""
+        
+    system_message = [
+        SystemMessage(
+            content=(
+                "You are a helpful assistant tasked with performing arithmetic on a set of inputs."
+                f"{summary_message}"
+            )
+        )
+    ]
 
     messages = state["llm_input_messages"]
     
-    return call_llm(runtime, summary_message, messages)
+    return call_llm(runtime, system_message, messages, use_system_message=True)
 
 
 # Build workflow

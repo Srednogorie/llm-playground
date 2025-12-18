@@ -114,7 +114,8 @@ export function Thread() {
   );
   const [selectedModel, setSelectedModel] = useState("gemma3:1b");
   const [messagesStrategy, setMessagesStrategy] = useState("delete");
-  const [messageStrategyNumber, setMessageStrategyNumber] = useState(1);
+  const [messageStrategyKeep, setMessageStrategyKeep] = useState(5);
+  const [messageStrategySummarize, setMessageStrategySummarize] = useState(5);
   const [maxTokens, setMaxTokens] = useState(250);
   const [temperature, setTemperature] = useState(0.7);
   // const [selectedModel, setSelectedModel] = useQueryState("selectedModel", { defaultValue: "gemma3:1b" });
@@ -200,7 +201,8 @@ export function Thread() {
           temperature,
           max_tokens: maxTokens,
           messages_strategy: messagesStrategy,
-          message_strategy_number: messageStrategyNumber,
+          message_strategy_keep: messageStrategyKeep,
+          message_strategy_summarize: messageStrategySummarize,
         }
       },
     );
@@ -520,18 +522,17 @@ export function Thread() {
                 if (!lastAiMessage || !lastAiMessage.usage_metadata) return null;
                 return (
                   <div>
-                    <p>Input Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.input_tokens}</span></p>
-                    <p>Output Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.output_tokens}</span></p>
-                    <p>Total Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.total_tokens}</span></p>
+                    <p className="text-sm italic">Input Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.input_tokens}</span></p>
+                    <p className="text-sm italic">Output Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.output_tokens}</span></p>
+                    <p className="text-sm italic">Total Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.total_tokens}</span></p>
                   </div>
                 );
               })()}
             </div>
-            <div className="p-4">
+            <div className="pl-4 pr-4 pt-4 pb-1">
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium block">Select Messages Strategy</label>
-                  <p className="text-xs text-gray-500 pb-2">Delete and Filter use lats strategy and require a number.</p>
+                  <label className="text-sm mb-2 font-medium block">Select Messages Strategy</label>
                   <Select value={messagesStrategy || ""} onValueChange={setMessagesStrategy}>
                     <SelectTrigger>
                       <SelectValue placeholder="Choose an option..." />
@@ -547,7 +548,14 @@ export function Thread() {
               </div>
             </div>
             <div className="pl-4 pr-4">
-              <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyNumber(Number(e.target.value))} value={messageStrategyNumber} />
+              <p className="text-xs text-gray-500 pb-2 italic">Keep the last n messages</p>
+              <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyKeep(Number(e.target.value))} value={messageStrategyKeep} />
+              {messagesStrategy === "summarize" && (
+                <div>
+                  <p className="text-xs text-gray-500 pb-2 italic">Kick off summarization after n messages</p>
+                  <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarize(Number(e.target.value))} value={messageStrategySummarize} />
+                </div>
+              )}
             </div>
           </div>
         </div>

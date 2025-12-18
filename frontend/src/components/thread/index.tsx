@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import Checkbox from "../ui/checkbox";
 
 function StickyToBottomContent(props: {
   content: ReactNode;
@@ -116,6 +117,17 @@ export function Thread() {
   const [messagesStrategy, setMessagesStrategy] = useState("delete");
   const [messageStrategyKeep, setMessageStrategyKeep] = useState(5);
   const [messageStrategySummarize, setMessageStrategySummarize] = useState(5);
+  const tools = ["Wired Division", "Magic Addition", "Random Subtraction"];
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+
+    setSelectedTools((prev) =>
+      prev.includes(value)
+        ? prev.filter((item) => item !== value) // uncheck
+        : [...prev, value] // check
+    );
+  };
   const [maxTokens, setMaxTokens] = useState(250);
   const [temperature, setTemperature] = useState(0.7);
   // const [selectedModel, setSelectedModel] = useQueryState("selectedModel", { defaultValue: "gemma3:1b" });
@@ -556,6 +568,30 @@ export function Thread() {
                   <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarize(Number(e.target.value))} value={messageStrategySummarize} />
                 </div>
               )}
+            </div>
+            <div className="pl-4 pr-4 pt-4 pb-1">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm mb-2 font-medium block">Select Tools</label>
+                  <Select value={""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose tools for your assistant..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tools.map((tool) => (
+                        <div key={tool}>
+                          <Checkbox
+                            id={tool}
+                            label={tool}
+                            checked={selectedTools.includes(tool)}
+                            onChange={handleChange}
+                          />
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </div>
         </div>

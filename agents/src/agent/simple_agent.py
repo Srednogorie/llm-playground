@@ -1,14 +1,19 @@
+import operator
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Literal
 
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage
+from langchain_community.document_loaders import WikipediaLoader
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
+from pydantic import BaseModel, Field
 
 
 def add(a: int, b: int) -> int:
@@ -68,7 +73,7 @@ tool_input_map = {
 
 class State(MessagesState):
     summary: str | None
-    llm_input_messages: list | None
+    search_context: Annotated[list, operator.add]  # Source docs
 
 
 @dataclass
@@ -80,11 +85,92 @@ class ContextSchema:
     message_strategy_keep: int
     message_strategy_summarize: int
     message_strategy_delete: int
-    agentic_tools: list[str]
+    agentic_tools: list[str] | None = None
     workflow_tools: list[str] | None = None
+    
+    
+class SearchQuery(BaseModel):
+    wikipedia_query: str | None = Field(None, description="Search query for retrieval.")
+    web_query: str | None = Field(None, description="Search query for retrieval.")
+    
+    
+search_instructions = SystemMessage(
+    content="""
+        You will be given a conversation between an llm assistant and a user.
+        Your goal is to generate search queries for different search engines.
+        There is no need to analyze the full conversation.
+        Pay particular attention to the final question posed by the user.
+        
+        RULES:
+        - Wikipedia search is lexical and title-based.
+        Return short queries (1–3 words) targeting canonical article titles.
+        - Web search is semantic.
+        Return descriptive, natural-language queries.
+    """
+    # content="""You will be given a conversation between an llm assistant and a user.
+
+    # Your goal is to generate a well-structured query for use in retrieval and / or web-search related to the conversation.
+
+    # There is no need to analyze the full conversation.
+
+    # Pay particular attention to the final question posed by the user.
+
+    # Convert this final question into a well-structured web search query"""
+)
 
 
 model = init_chat_model(configurable_fields="any")
+search_question_model = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
+
+
+def search_web(state: State, runtime: Runtime[ContextSchema]):
+    """ Retrieve docs from web search """
+    
+    if runtime.context.workflow_tools and "tavily" in runtime.context.workflow_tools:
+
+        # Search
+        tavily_search = TavilySearch(max_results=1, include_raw_content=True)
+    
+        # Search query
+        structured_llm = search_question_model.with_structured_output(SearchQuery)
+        search_query = structured_llm.invoke([search_instructions] + state["messages"])
+    
+        # Search
+        search_docs = tavily_search.invoke(search_query.web_query)
+    
+        # Format
+        formatted_search_docs = "\n\n---\n\n".join(
+            [
+                f'<Document href="{doc["url"]}"/>\n{doc["raw_content"]}\n</Document>'
+                for doc in search_docs["results"]
+            ],
+        )
+    
+        return {"search_context": [formatted_search_docs]}
+
+
+def search_wikipedia(state: State, runtime: Runtime[ContextSchema]):
+    """ Retrieve docs from wikipedia """
+    
+    if runtime.context.workflow_tools and "wikipedia" in runtime.context.workflow_tools:
+
+        # Search query
+        structured_llm = search_question_model.with_structured_output(SearchQuery)
+        search_query = structured_llm.invoke([search_instructions] + state["messages"])
+
+        # Search
+        search_docs = WikipediaLoader(query=search_query.wikipedia_query, load_max_docs=2).load()
+    
+        # Format
+        formatted_search_docs = "\n\n---\n\n".join(
+            [
+                f'<Document source="{doc.metadata["source"]}"'
+                f'page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+                for doc in search_docs
+            ],
+        )
+    
+        return {"search_context": [formatted_search_docs]}
 
 
 def get_llm_context(state: State, runtime: Runtime[ContextSchema]) -> list:
@@ -128,6 +214,7 @@ def call_llm(runtime, system_message, messages, use_system_message):
 
     if use_system_message:
         messages = system_message + messages
+
     if runtime.context.model in ["gpt-4.1-nano", "claude-3-haiku-20240307"]:
         return {
             "messages": [
@@ -197,18 +284,25 @@ def conversation(state: State, runtime: Runtime[ContextSchema]):
         summary_message = f"Summary of the conversation so far: {summary}"
     else:
         summary_message = ""
+        
+    search_context = state.get("search_context", "")
+    if search_context:
+        search_context_message = f"Search Context: {search_context}"
+    else:
+        search_context_message = ""
 
     system_message = [
         SystemMessage(
             content=(
-                "You are a helpful assistant tasked with performing arithmetic on a set of inputs."
+                # "You are a helpful assistant tasked with performing arithmetic on a set of inputs."
+                "You are a helpful assistant. Use the provided context to answer the user's question."
                 f"{summary_message}"
+                f"{search_context_message}"
             )
         )
     ]
 
     messages = get_llm_context(state, runtime)
-    print(f"LEN OF MESSAGES: {len(messages)}")
 
     return call_llm(runtime, system_message, messages, use_system_message=True)
 
@@ -236,12 +330,15 @@ def route_after_conversation(state: State, runtime: Runtime[ContextSchema]) -> s
 # Build workflow
 agent_builder = StateGraph(State, context_schema=ContextSchema)
 
-
+agent_builder.add_node("search_web", search_web)
+agent_builder.add_node("search_wikipedia", search_wikipedia)
 agent_builder.add_node("conversation", conversation)
 agent_builder.add_node("tools", ToolNode([add, multiply, divide]))
 agent_builder.add_node("summarize_conversation", summarize_conversation)
 
-agent_builder.add_edge(START, "conversation")
+agent_builder.add_edge(START, "search_web")
+agent_builder.add_edge("search_web", "search_wikipedia")
+agent_builder.add_edge("search_wikipedia", "conversation")
 agent_builder.add_conditional_edges(
     "conversation",
     route_after_conversation,  # Single routing function

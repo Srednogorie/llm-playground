@@ -114,19 +114,42 @@ export function Thread() {
     parseAsBoolean.withDefault(false),
   );
   const [selectedModel, setSelectedModel] = useState("gemma3:1b");
-  const [messagesStrategy, setMessagesStrategy] = useState("delete");
+  const [messagesStrategy, setMessagesStrategy] = useState("trim_count");
   const [messageStrategyKeep, setMessageStrategyKeep] = useState(5);
   const [messageStrategySummarize, setMessageStrategySummarize] = useState(5);
-  const tools = ["Wired Division", "Magic Addition", "Random Subtraction"];
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [messageStrategySummarizeDelete, setMessageStrategySummarizeDelete] = useState(0);
+  const tools = {
+    Addition: "add",
+    Multiplication: "multiply",
+    Division: "divide",
+  };
+  const [selectedTools, setSelectedTools] = useState<{ [key: string]: string }>({});
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-
-    setSelectedTools((prev) =>
-      prev.includes(value)
-        ? prev.filter((item) => item !== value) // uncheck
-        : [...prev, value] // check
-    );
+    const key = Object.keys(tools).find((key) => tools[key as keyof typeof tools] === value);
+    if (key) {
+      setSelectedTools(
+        selectedTools[key] === value
+          ? Object.fromEntries(Object.entries(selectedTools).filter(([k]) => k !== key))  // Uncheck
+          : { ...selectedTools, [key]: value }  // Check
+      );
+    }
+  };
+  const workflowTools = {
+    Wikipedia: "wikipedia",
+    Tavily: "tavily",
+  };
+  const [selectedWorkflowTools, setSelectedWorkflowTools] = useState<{ [key: string]: string }>({});
+  const handleWorkflowChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    const key = Object.keys(workflowTools).find((key) => workflowTools[key as keyof typeof workflowTools] === value);
+    if (key) {
+      setSelectedWorkflowTools(
+        selectedWorkflowTools[key] === value
+          ? Object.fromEntries(Object.entries(selectedWorkflowTools).filter(([k]) => k !== key))  // Uncheck
+          : { ...selectedWorkflowTools, [key]: value }  // Check
+      );
+    }
   };
   const [maxTokens, setMaxTokens] = useState(250);
   const [temperature, setTemperature] = useState(0.7);
@@ -215,6 +238,9 @@ export function Thread() {
           messages_strategy: messagesStrategy,
           message_strategy_keep: messageStrategyKeep,
           message_strategy_summarize: messageStrategySummarize,
+          message_strategy_delete: messageStrategySummarizeDelete,
+          agentic_tools: selectedTools,
+          workflow_tools: selectedWorkflowTools,
         }
       },
     );
@@ -550,7 +576,6 @@ export function Thread() {
                       <SelectValue placeholder="Choose an option..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="delete">Delete</SelectItem>
                       <SelectItem value="trim_count">Trim count</SelectItem>
                       <SelectItem value="trim_tokens">Trim tokens</SelectItem>
                       <SelectItem value="summarize">Summarize</SelectItem>
@@ -560,31 +585,63 @@ export function Thread() {
               </div>
             </div>
             <div className="pl-4 pr-4">
-              <p className="text-xs text-gray-500 pb-2 italic">Keep the last n messages</p>
-              <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyKeep(Number(e.target.value))} value={messageStrategyKeep} />
+              { (messagesStrategy === "trim_count" || messagesStrategy === "trim_tokens") && (
+                <div>
+                  <p className="text-xs text-gray-500 pb-2 italic">Pass the last n { messagesStrategy === "trim_count" ? "messages" : messagesStrategy === "trim_tokens" ? "tokens" : "messages" } to the model</p>
+                  <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyKeep(Number(e.target.value))} value={messageStrategyKeep} />
+                </div>
+              )}
               {messagesStrategy === "summarize" && (
                 <div>
                   <p className="text-xs text-gray-500 pb-2 italic">Kick off summarization after n messages</p>
                   <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarize(Number(e.target.value))} value={messageStrategySummarize} />
+                  <p className="text-xs text-gray-500 pb-2 italic">Delete the first n messages after summarization</p>
+                    <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarizeDelete(Number(e.target.value))} value={messageStrategySummarizeDelete} />
                 </div>
               )}
             </div>
             <div className="pl-4 pr-4 pt-4 pb-1">
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm mb-2 font-medium block">Select Tools</label>
+                  <label className="text-sm mb-2 font-medium block">Select Tools - ToolNode(Agentic)</label>
                   <Select value={""}>
                     <SelectTrigger>
                       <SelectValue placeholder="Choose tools for your assistant..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {tools.map((tool) => (
-                        <div key={tool}>
+                      {Object.entries(tools).map(([key, value]) => (
+                        <div key={value}>
                           <Checkbox
-                            id={tool}
-                            label={tool}
-                            checked={selectedTools.includes(tool)}
+                            id={value}
+                            label={key}
+                            value={value}
+                            checked={selectedTools[key] === value}
                             onChange={handleChange}
+                          />
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <div className="pl-4 pr-4 pt-4 pb-1">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm mb-2 font-medium block">Select Tools - Separate Nodes(Workflow)</label>
+                  <Select value={""}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose tools for your assistant..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(workflowTools).map(([key, value]) => (
+                        <div key={value}>
+                          <Checkbox
+                            id={value}
+                            label={key}
+                            value={value}
+                            checked={selectedWorkflowTools[key] === value}
+                            onChange={handleWorkflowChange}
                           />
                         </div>
                       ))}

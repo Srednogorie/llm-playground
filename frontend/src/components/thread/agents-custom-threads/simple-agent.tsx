@@ -4,16 +4,16 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
-import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
-import { HumanMessage } from "./messages/human";
+import { AssistantMessage, AssistantMessageLoading } from "../messages/ai";
+import { HumanMessage } from "../messages/human";
 import {
   DO_NOT_RENDER_ID_PREFIX,
   ensureToolCallsHaveResponses,
 } from "@/lib/ensure-tool-responses";
-import { LangGraphLogoSVG } from "../icons/langgraph";
-import { TooltipIconButton } from "./tooltip-icon-button";
+import { LangGraphLogoSVG } from "../../icons/langgraph";
+import { TooltipIconButton } from "../tooltip-icon-button";
 import {
   ArrowDown,
   LoaderCircle,
@@ -23,26 +23,26 @@ import {
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
-import ThreadHistory from "./history";
+import ThreadHistory from "../history";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
-import { GitHubSVG } from "../icons/github";
+import { Label } from "../../ui/label";
+import { Switch } from "../../ui/switch";
+import { GitHubSVG } from "../../icons/github";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../ui/tooltip";
+} from "../../ui/tooltip";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
-import Checkbox from "../ui/checkbox";
+} from "../../ui/select";
+import Checkbox from "../../ui/checkbox";
 
 function StickyToBottomContent(props: {
   content: ReactNode;
@@ -88,7 +88,7 @@ function OpenGitHubRepo() {
       <Tooltip>
         <TooltipTrigger asChild>
           <a
-            href="https://github.com/langchain-ai/agent-chat-ui"
+            href="https://github.com/Srednogorie/llm-playground"
             target="_blank"
             className="flex items-center justify-center"
           >
@@ -103,7 +103,7 @@ function OpenGitHubRepo() {
   );
 }
 
-export function Thread() {
+export function SimpleAgentThread() {
   const [threadId, setThreadId] = useQueryState("threadId");
   const [chatHistoryOpen, setChatHistoryOpen] = useQueryState(
     "chatHistoryOpen",
@@ -309,7 +309,7 @@ export function Thread() {
         }
       >
         {!chatStarted && (
-          <div className="absolute top-0 left-0 w-full flex items-center justify-between gap-3 p-2 pl-4 z-10">
+          <div className="relative top-0 left-0 w-full flex items-center justify-between gap-3 p-2 pl-4 z-10 h-12">
             <div>
               {(!chatHistoryOpen || !isLargeScreen) && (
                 <Button
@@ -516,7 +516,7 @@ export function Thread() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gemma3:1b">Gemma 3 1B</SelectItem>
-                      <SelectItem value="gpt-4.1-nano">GPT 4.1 Nano</SelectItem>
+                      <SelectItem value="gpt-5-nano">GPT 5 Nano</SelectItem>
                       <SelectItem value="claude-3-haiku-20240307">Haiko 3</SelectItem>
                     </SelectContent>
                   </Select>

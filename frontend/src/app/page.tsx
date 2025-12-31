@@ -1,20 +1,18 @@
 "use client";
 
-import { Thread } from "@/components/thread";
-import { StreamProvider } from "@/providers/Stream";
-import { ThreadProvider } from "@/providers/Thread";
-import { Toaster } from "@/components/ui/sonner";
 import React from "react";
+import Link from "next/link";
 
 export default function DemoPage(): React.ReactNode {
   return (
-    <React.Suspense fallback={<div>Loading (layout)...</div>}>
-      <Toaster />
-      <ThreadProvider>
-        <StreamProvider>
-          <Thread />
-        </StreamProvider>
-      </ThreadProvider>
-    </React.Suspense>
+    <div>
+      <div>
+        <Link href="/simple-agent">Simple Agent</Link>  
+      </div>
+      <div>
+        <Link href="/tools-mcp-agent">Tools/MCP Agent</Link>
+      </div>
+    </div>
+    
   );
 }

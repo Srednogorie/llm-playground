@@ -1,6 +1,6 @@
-import operator
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from enum import Enum
+from typing import Literal
 
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage
@@ -62,7 +62,7 @@ def divide(a: int, b: int) -> float:
 
     """
     return a / b
-    
+
 
 tool_input_map = {
     "add": add,
@@ -73,7 +73,8 @@ tool_input_map = {
 
 class State(MessagesState):
     summary: str | None
-    search_context: Annotated[list, operator.add]  # Source docs
+    web_search_context: list[str]
+    wiki_search_context: list[str]
 
 
 @dataclass
@@ -94,6 +95,95 @@ class SearchQuery(BaseModel):
     web_query: str | None = Field(None, description="Search query for retrieval.")
     
     
+def should_search(state: State, runtime: Runtime[ContextSchema]) -> Literal["search", "conversation"]:
+    """Determine if we need to search or can answer directly."""
+    
+    # If no search tools configured, skip search
+    if not runtime.context.workflow_tools:
+        return "conversation"
+    
+    # On first message, always search if tools are available
+    if len(state["messages"]) <= 1:
+        return "search"
+        
+    web_search_context = state.get("web_search_context", "")
+    if web_search_context:
+        web_search_context_message = f"Web Search Context: {web_search_context}"
+    else:
+        web_search_context_message = ""
+        
+    wiki_search_context = state.get("wiki_search_context", "")
+    if wiki_search_context:
+        wiki_search_context_message = f"Wikipedia Search Context: {wiki_search_context}"
+    else:
+        wiki_search_context_message = ""
+    
+    # For follow-up questions, use LLM to decide
+    decision_prompt: list = [SystemMessage(
+        content="""
+            Analyze the user's latest message, conversation history and external search contexts if available.
+            
+            The latest message from the user is the message that needs to be analyzed most because it may or may not be
+            relevant to the current conversation. Pay special attention to the last message from the user.
+            
+            Determine if NEW information from external sources (web/wikipedia) is needed.
+            
+            Return "search" if:
+            - The question asks about current events, facts, or topics not in the conversation or the context
+            - The user explicitly asks to look something up
+            
+            Return "no search" if:
+            - The question can be answered from the existing conversation context
+            - It's a clarification or follow-up about information already retrieved
+            - It's a simple calculation or reasoning task
+            - Generally prefer to avoid searching unless absolutely necessary
+        """
+    )]
+    
+    class Decision(str, Enum):
+        ANSWER_FROM_CONTEXT = "answer_from_context"
+        ANSWER_FROM_HISTORY = "answer_from_history"
+        NEEDS_NEW_SEARCH = "needs_new_search"
+    
+    class SearchDecision(BaseModel):
+        decision: Decision = Field(
+            description="""Choose ONE:
+            - answer_from_context: The existing Web Search Context context or Wikipedia Search Context has the answer
+            - answer_from_history: The conversation history has the answer
+            - needs_new_search: Need to search external sources
+            """
+        )
+        reasoning: str = Field(
+            description="Quote the relevant part of context/history OR explain what's missing"
+        )
+        
+    # Add conversation history
+    decision_prompt.extend(state["messages"])
+
+    if web_search_context_message or wiki_search_context_message:
+        search_context_human_message = HumanMessage(
+            content=f"""
+                HISTORICAL SEARCH CONTEXT (from previous questions in this conversation):
+                    - Web Search Context: {web_search_context_message}
+                    - Wikipedia Search Context: {wiki_search_context_message}
+                NOTE: The above context may NOT be relevant to the user's LATEST question below.
+            """
+        )
+        decision_prompt.append(search_context_human_message)
+    
+    # Make the latest user message explicit
+    decision_prompt.append(HumanMessage(content=f'''
+        LATEST USER QUESTION TO ANALYZE: {state["messages"][-1].content}
+        
+        Does this LATEST question require a NEW search, or can it be answered from the historical context above?
+    '''))
+    
+    decision_model = search_question_model.with_structured_output(SearchDecision)
+    decision = decision_model.invoke(decision_prompt)
+
+    return "search" if decision.decision == Decision.NEEDS_NEW_SEARCH else "conversation"
+    
+    
 search_instructions = SystemMessage(
     content="""
         You will be given a conversation between an llm assistant and a user.
@@ -107,20 +197,11 @@ search_instructions = SystemMessage(
         - Web search is semantic.
         Return descriptive, natural-language queries.
     """
-    # content="""You will be given a conversation between an llm assistant and a user.
-
-    # Your goal is to generate a well-structured query for use in retrieval and / or web-search related to the conversation.
-
-    # There is no need to analyze the full conversation.
-
-    # Pay particular attention to the final question posed by the user.
-
-    # Convert this final question into a well-structured web search query"""
 )
 
 
 model = init_chat_model(configurable_fields="any")
-search_question_model = ChatOpenAI(model="gpt-4.1-nano", temperature=0)
+search_question_model = ChatOpenAI(model="gpt-5-mini", temperature=0)
 
 
 def search_web(state: State, runtime: Runtime[ContextSchema]):
@@ -146,7 +227,7 @@ def search_web(state: State, runtime: Runtime[ContextSchema]):
             ],
         )
     
-        return {"search_context": [formatted_search_docs]}
+        return {"web_search_context": [formatted_search_docs]}
 
 
 def search_wikipedia(state: State, runtime: Runtime[ContextSchema]):
@@ -157,20 +238,21 @@ def search_wikipedia(state: State, runtime: Runtime[ContextSchema]):
         # Search query
         structured_llm = search_question_model.with_structured_output(SearchQuery)
         search_query = structured_llm.invoke([search_instructions] + state["messages"])
-
-        # Search
-        search_docs = WikipediaLoader(query=search_query.wikipedia_query, load_max_docs=2).load()
-    
-        # Format
-        formatted_search_docs = "\n\n---\n\n".join(
-            [
-                f'<Document source="{doc.metadata["source"]}"'
-                f'page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
-                for doc in search_docs
-            ],
-        )
-    
-        return {"search_context": [formatted_search_docs]}
+        
+        if search_query.wikipedia_query:
+            # Search
+            search_docs = WikipediaLoader(query=search_query.wikipedia_query, load_max_docs=2).load()
+        
+            # Format
+            formatted_search_docs = "\n\n---\n\n".join(
+                [
+                    f'<Document source="{doc.metadata["source"]}"'
+                    f'page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+                    for doc in search_docs
+                ],
+            )
+        
+            return {"wiki_search_context": [formatted_search_docs]}
 
 
 def get_llm_context(state: State, runtime: Runtime[ContextSchema]) -> list:
@@ -222,7 +304,7 @@ def call_llm(runtime, system_message, messages, use_system_message):
                     messages,
                     config={
                         "configurable": {
-                            "model": runtime.context.model,
+                            "model": "gpt-5-mini",
                             "temperature": runtime.context.temperature,
                             "max_tokens": runtime.context.max_tokens
                         }
@@ -285,19 +367,26 @@ def conversation(state: State, runtime: Runtime[ContextSchema]):
     else:
         summary_message = ""
         
-    search_context = state.get("search_context", "")
-    if search_context:
-        search_context_message = f"Search Context: {search_context}"
+    web_search_context = state.get("web_search_context", "")
+    if web_search_context:
+        web_search_context_message = f"Web Search Context: {web_search_context}"
     else:
-        search_context_message = ""
-
+        web_search_context_message = ""
+        
+    wiki_search_context = state.get("wiki_search_context", "")
+    if wiki_search_context:
+        wiki_search_context_message = f"Wikipedia Search Context: {wiki_search_context}"
+    else:
+        wiki_search_context_message = ""
+        
     system_message = [
         SystemMessage(
             content=(
                 # "You are a helpful assistant tasked with performing arithmetic on a set of inputs."
                 "You are a helpful assistant. Use the provided context to answer the user's question."
                 f"{summary_message}"
-                f"{search_context_message}"
+                f"{web_search_context_message}"
+                f"{wiki_search_context_message}"
             )
         )
     ]
@@ -336,7 +425,15 @@ agent_builder.add_node("conversation", conversation)
 agent_builder.add_node("tools", ToolNode([add, multiply, divide]))
 agent_builder.add_node("summarize_conversation", summarize_conversation)
 
-agent_builder.add_edge(START, "search_web")
+# Route from START based on search decision
+agent_builder.add_conditional_edges(
+    START,
+    should_search,
+    {
+        "search": "search_web",
+        "conversation": "conversation",
+    }
+)
 agent_builder.add_edge("search_web", "search_wikipedia")
 agent_builder.add_edge("search_wikipedia", "conversation")
 agent_builder.add_conditional_edges(

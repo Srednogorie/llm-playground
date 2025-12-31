@@ -79,7 +79,7 @@ class State(MessagesState):
 
 @dataclass
 class ContextSchema:
-    model: Literal["gpt-4.1-nano", "claude-3-haiku-20240307", "gemma3:1b"]
+    model: Literal["gpt-5-nano", "claude-3-haiku-20240307", "gemma3:1b"]
     temperature: float
     max_tokens: int
     messages_strategy: Literal["trim_count", "trim_tokens", "summarize"]
@@ -201,7 +201,7 @@ search_instructions = SystemMessage(
 
 
 model = init_chat_model(configurable_fields="any")
-search_question_model = ChatOpenAI(model="gpt-5-mini", temperature=0)
+search_question_model = ChatOpenAI(model="gpt-5-nano", temperature=0)
 
 
 def search_web(state: State, runtime: Runtime[ContextSchema]):
@@ -297,14 +297,14 @@ def call_llm(runtime, system_message, messages, use_system_message):
     if use_system_message:
         messages = system_message + messages
 
-    if runtime.context.model in ["gpt-4.1-nano", "claude-3-haiku-20240307"]:
+    if runtime.context.model in ["gpt-5-nano", "claude-3-haiku-20240307"]:
         return {
             "messages": [
                 call_model.invoke(
                     messages,
                     config={
                         "configurable": {
-                            "model": "gpt-5-mini",
+                            "model": runtime.context.model,
                             "temperature": runtime.context.temperature,
                             "max_tokens": runtime.context.max_tokens
                         }

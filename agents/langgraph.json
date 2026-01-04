@@ -2,7 +2,10 @@
   "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["."],
   "graphs": {
-    "simple-agent": "./src/agent/simple_agent.py:simple_agent"
+    "simple-agent": "./src/agent/simple_agent.py:simple_agent",
+    "tools-mcp-agent": "./src/agent/tools_mcp_agent.py:tools_mcp_agent",
+    "deep-agent": "./src/agent/deep_agent.py:deep_agent",
+    "deep-agent-subagent": "./src/agent/deep_agent_subagent.py:deep_agent_subagent"
   },
   "env": ".env",
   "image_distro": "wolfi"

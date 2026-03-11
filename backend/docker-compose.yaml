@@ -46,3 +46,5 @@ services:
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
       POSTGRES_URI: ${POSTGRES_URI}
     env_file: .env
+    volumes:
+      - ${BASE_PATH}/${PROJECT_NAME}:/home/app/agent-context/${PROJECT_NAME}

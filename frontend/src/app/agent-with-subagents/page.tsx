@@ -1,20 +1,20 @@
 "use client";
 
-import { SimpleAgentThread } from "@/components/thread/agents-custom-threads/simple-agent";
+import { AgentWithSubagentsThread } from "@/components/thread/agents-custom-threads/agent-with-subagents";
 import { StreamProvider } from "@/providers/Stream";
 import { ThreadProvider } from "@/providers/Thread";
 import { Toaster } from "@/components/ui/sonner";
 import React from "react";
 import { ArtifactProvider } from "@/components/thread/artifact";
 
-export default function DemoPage(): React.ReactNode {
+export default function DeepAgentTestPage(): React.ReactNode {
   return (
     <React.Suspense fallback={<div>Loading (layout)...</div>}>
       <Toaster />
-      <ThreadProvider currentAssistantId="simple-agent">
-        <StreamProvider currentAssistantId="simple-agent">
+      <ThreadProvider currentAssistantId="agent-with-subagents">
+        <StreamProvider currentAssistantId="agent-with-subagents">
           <ArtifactProvider>
-            <SimpleAgentThread />
+            <AgentWithSubagentsThread />
           </ArtifactProvider>
         </StreamProvider>
       </ThreadProvider>

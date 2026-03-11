@@ -13,6 +13,7 @@ import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
+import { useArtifact } from "../artifact";
 
 function CustomComponent({
   message,
@@ -21,6 +22,7 @@ function CustomComponent({
   message: Message;
   thread: ReturnType<typeof useStreamContext>;
 }) {
+  const artifact = useArtifact();
   const { values } = useStreamContext();
   const customComponents = values.ui?.filter(
     (ui) => ui.metadata?.message_id === message.id,
@@ -34,7 +36,7 @@ function CustomComponent({
           key={customComponent.id}
           stream={thread}
           message={customComponent}
-          meta={{ ui: customComponent }}
+          meta={{ ui: customComponent, artifact }}
         />
       ))}
     </Fragment>
@@ -63,6 +65,37 @@ function parseAnthropicStreamedToolCalls(
       type: "tool_call",
     };
   });
+}
+
+interface InterruptProps {
+  interrupt?: unknown;
+  isLastMessage: boolean;
+  hasNoAIOrToolMessages: boolean;
+}
+
+function Interrupt({
+  interrupt,
+  isLastMessage,
+  hasNoAIOrToolMessages,
+}: InterruptProps) {
+  const fallbackValue = Array.isArray(interrupt)
+    ? (interrupt as Record<string, any>[])
+    : (((interrupt as { value?: unknown } | undefined)?.value ??
+        interrupt) as Record<string, any>);
+
+  return (
+    <>
+      {isAgentInboxInterruptSchema(interrupt) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <ThreadView interrupt={interrupt} />
+        )}
+      {interrupt &&
+      !isAgentInboxInterruptSchema(interrupt) &&
+      (isLastMessage || hasNoAIOrToolMessages) ? (
+        <GenericInterruptView interrupt={fallbackValue} />
+      ) : null}
+    </>
+  );
 }
 
 export function AssistantMessage({
@@ -113,71 +146,83 @@ export function AssistantMessage({
   }
 
   return (
-    <div className="flex items-start mr-auto gap-2 group">
-      {isToolResult ? (
-        <ToolResult message={message} />
-      ) : (
-        <div className="flex flex-col gap-2">
-          {contentString.length > 0 && (
-            <div className="py-1">
-              <MarkdownText>{contentString}</MarkdownText>
-            </div>
-          )}
+    <div className="group mr-auto flex w-full items-start gap-2">
+      <div className="flex w-full flex-col gap-2">
+        {isToolResult ? (
+          <>
+            <ToolResult message={message} />
+            <Interrupt
+              interrupt={threadInterrupt}
+              isLastMessage={isLastMessage}
+              hasNoAIOrToolMessages={hasNoAIOrToolMessages}
+            />
+          </>
+        ) : (
+          <>
+            {contentString.length > 0 && (
+              <div className="py-1">
+                <MarkdownText>{contentString}</MarkdownText>
+              </div>
+            )}
 
-          {!hideToolCalls && (
-            <>
-              {(hasToolCalls && toolCallsHaveContents && (
-                <ToolCalls toolCalls={message.tool_calls} />
-              )) ||
-                (hasAnthropicToolCalls && (
-                  <ToolCalls toolCalls={anthropicStreamedToolCalls} />
+            {!hideToolCalls && (
+              <>
+                {(hasToolCalls && toolCallsHaveContents && (
+                  <ToolCalls toolCalls={message.tool_calls} />
                 )) ||
-                (hasToolCalls && <ToolCalls toolCalls={message.tool_calls} />)}
-            </>
-          )}
+                  (hasAnthropicToolCalls && (
+                    <ToolCalls toolCalls={anthropicStreamedToolCalls} />
+                  )) ||
+                  (hasToolCalls && (
+                    <ToolCalls toolCalls={message.tool_calls} />
+                  ))}
+              </>
+            )}
 
-          {message && <CustomComponent message={message} thread={thread} />}
-          {isAgentInboxInterruptSchema(threadInterrupt?.value) &&
-            (isLastMessage || hasNoAIOrToolMessages) && (
-              <ThreadView interrupt={threadInterrupt.value} />
+            {message && (
+              <CustomComponent
+                message={message}
+                thread={thread}
+              />
             )}
-          {threadInterrupt?.value &&
-          !isAgentInboxInterruptSchema(threadInterrupt.value) &&
-          isLastMessage ? (
-            <GenericInterruptView interrupt={threadInterrupt.value} />
-          ) : null}
-          <div
-            className={cn(
-              "flex gap-2 items-center mr-auto transition-opacity",
-              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
-            )}
-          >
-            <BranchSwitcher
-              branch={meta?.branch}
-              branchOptions={meta?.branchOptions}
-              onSelect={(branch) => thread.setBranch(branch)}
-              isLoading={isLoading}
+            <Interrupt
+              interrupt={threadInterrupt}
+              isLastMessage={isLastMessage}
+              hasNoAIOrToolMessages={hasNoAIOrToolMessages}
             />
-            <CommandBar
-              content={contentString}
-              isLoading={isLoading}
-              isAiMessage={true}
-              handleRegenerate={() => handleRegenerate(parentCheckpoint)}
-            />
-          </div>
-        </div>
-      )}
+            <div
+              className={cn(
+                "mr-auto flex items-center gap-2 transition-opacity",
+                "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+              )}
+            >
+              <BranchSwitcher
+                branch={meta?.branch}
+                branchOptions={meta?.branchOptions}
+                onSelect={(branch) => thread.setBranch(branch)}
+                isLoading={isLoading}
+              />
+              <CommandBar
+                content={contentString}
+                isLoading={isLoading}
+                isAiMessage={true}
+                handleRegenerate={() => handleRegenerate(parentCheckpoint)}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 export function AssistantMessageLoading() {
   return (
-    <div className="flex items-start mr-auto gap-2">
-      <div className="flex items-center gap-1 rounded-2xl bg-muted px-4 py-2 h-8">
-        <div className="w-1.5 h-1.5 rounded-full bg-foreground/50 animate-[pulse_1.5s_ease-in-out_infinite]"></div>
-        <div className="w-1.5 h-1.5 rounded-full bg-foreground/50 animate-[pulse_1.5s_ease-in-out_0.5s_infinite]"></div>
-        <div className="w-1.5 h-1.5 rounded-full bg-foreground/50 animate-[pulse_1.5s_ease-in-out_1s_infinite]"></div>
+    <div className="mr-auto flex items-start gap-2">
+      <div className="bg-muted flex h-8 items-center gap-1 rounded-2xl px-4 py-2">
+        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full"></div>
+        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] rounded-full"></div>
+        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_1s_infinite] rounded-full"></div>
       </div>
     </div>
   );

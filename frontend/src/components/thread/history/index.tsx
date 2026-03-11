@@ -146,6 +146,7 @@ export default function ThreadHistory() {
           </h1>
         </div>
         {threadsLoading ? (
+          // TODO: Do some experiments with the loader, it seems like it's not working very properly atm
           <></>
           // <ThreadHistoryLoading />
         ) : (
@@ -160,7 +161,10 @@ export default function ThreadHistory() {
             setChatHistoryOpen(open);
           }}
         >
-          <SheetContent side="left" className="lg:hidden flex">
+          <SheetContent
+            side="left"
+            className="flex lg:hidden"
+          >
             <SheetHeader>
               <SheetTitle>Thread History</SheetTitle>
             </SheetHeader>

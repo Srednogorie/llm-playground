@@ -43,7 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../ui/select";
-import Checkbox from "../../ui/checkbox";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { ContentBlocksPreview } from "../ContentBlocksPreview";
 import {
@@ -113,7 +112,7 @@ function OpenGitHubRepo() {
   );
 }
 
-export function SimpleAgentThread() {
+export function AgentWithSubagentsThread() {
   const [artifactContext, setArtifactContext] = useArtifactContext();
   const [artifactOpen, closeArtifact] = useArtifactOpen();
 
@@ -127,46 +126,9 @@ export function SimpleAgentThread() {
     parseAsBoolean.withDefault(false),
   );
 
-  const [selectedModel, setSelectedModel] = useState("openai/gpt-oss-120b");
-  const [messagesStrategy, setMessagesStrategy] = useState("trim_count");
-  const [messageStrategyKeep, setMessageStrategyKeep] = useState(5);
-  const [messageStrategySummarize, setMessageStrategySummarize] = useState(5);
-  const [messageStrategySummarizeDelete, setMessageStrategySummarizeDelete] = useState(0);
-  const tools = {
-    Addition: "add",
-    Multiplication: "multiply",
-    Division: "divide",
-  };
-  const [selectedTools, setSelectedTools] = useState<{ [key: string]: string }>({});
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    const key = Object.keys(tools).find((key) => tools[key as keyof typeof tools] === value);
-    if (key) {
-      setSelectedTools(
-        selectedTools[key] === value
-          ? Object.fromEntries(Object.entries(selectedTools).filter(([k]) => k !== key))  // Uncheck
-          : { ...selectedTools, [key]: value }  // Check
-      );
-    }
-  };
-  const workflowTools = {
-    Wikipedia: "wikipedia",
-    Tavily: "tavily",
-  };
-  const [selectedWorkflowTools, setSelectedWorkflowTools] = useState<{ [key: string]: string }>({});
-  const handleWorkflowChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    const key = Object.keys(workflowTools).find((key) => workflowTools[key as keyof typeof workflowTools] === value);
-    if (key) {
-      setSelectedWorkflowTools(
-        selectedWorkflowTools[key] === value
-          ? Object.fromEntries(Object.entries(selectedWorkflowTools).filter(([k]) => k !== key))  // Uncheck
-          : { ...selectedWorkflowTools, [key]: value }  // Check
-      );
-    }
-  };
-  const [maxTokens, setMaxTokens] = useState(1000);
-  const [temperature, setTemperature] = useState(0.7);
+  const [mainSelectedModel, setMainSelectedModel] = useState("openai/gpt-oss-120b");
+  const [sqlSelectedModel, setSqlSelectedModel] = useState("openai/gpt-oss-120b");
+  const [analystSelectedModel, setAnalystSelectedModel] = useState("openai/gpt-oss-120b");
   const [groqToken, setGroqToken] = useState("");
 
   const [input, setInput] = useState("");
@@ -283,7 +245,7 @@ export function SimpleAgentThread() {
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
       {
-        streamMode: ["values"],
+        streamMode: ["updates"],
         streamSubgraphs: true,
         streamResumable: true,
         optimisticValues: (prev) => ({
@@ -297,15 +259,9 @@ export function SimpleAgentThread() {
         }),
         context: {
           token: groqToken,
-          model: selectedModel,
-          temperature,
-          max_tokens: maxTokens,
-          messages_strategy: messagesStrategy,
-          message_strategy_keep: messageStrategyKeep,
-          message_strategy_summarize: messageStrategySummarize,
-          message_strategy_delete: messageStrategySummarizeDelete,
-          agentic_tools: selectedTools,
-          workflow_tools: selectedWorkflowTools,
+          main_model: mainSelectedModel,
+          sql_model: sqlSelectedModel,
+          analyst_model: analystSelectedModel,
         }
       },
     );
@@ -322,7 +278,7 @@ export function SimpleAgentThread() {
     setFirstTokenReceived(false);
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
-      streamMode: ["values"],
+      streamMode: ["updates"],
       streamSubgraphs: true,
       streamResumable: true,
     });
@@ -438,7 +394,7 @@ export function SimpleAgentThread() {
                 }}
               >
                 <span className="text-xl font-semibold tracking-tight">
-                  Dummy Configurable Agent
+                  Agent With Subagents
                 </span>
               </motion.button>
             </div>
@@ -514,7 +470,7 @@ export function SimpleAgentThread() {
                     {!chatStarted && (
                       <div className="flex gap-3 items-center">
                         <h1 className="text-2xl font-semibold tracking-tight">
-                          Dummy Configurable Agent
+                          Agent With Subagents
                         </h1>
                       </div>
                     )}
@@ -638,8 +594,8 @@ export function SimpleAgentThread() {
               <div className="p-4">
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Select a model</label>
-                    <Select value={selectedModel || ""} onValueChange={setSelectedModel}>
+                    <label className="text-sm font-medium mb-2 block">Select the main model</label>
+                    <Select value={mainSelectedModel || ""} onValueChange={setMainSelectedModel}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose an option..." />
                       </SelectTrigger>
@@ -655,127 +611,38 @@ export function SimpleAgentThread() {
                 </div>
               </div>
               <div className="p-4">
-                <label className="text-sm font-medium mb-2 block">Temperature</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    value={temperature}
-                    onChange={(e) => setTemperature(Number(e.target.value))}
-                  />
-                  <span className="text-sm font-medium w-12 text-right">{temperature.toFixed(1)}</span>
-                </div>
-              </div>
-              <div className="p-4">
-                <label className="text-sm font-medium mb-2 block">Max Tokens</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="250"
-                    max="2000"
-                    step="50"
-                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    value={maxTokens}
-                    onChange={(e) => setMaxTokens(Number(e.target.value))}
-                  />
-                  <span className="text-sm font-medium w-12 text-right">{maxTokens}</span>
-                </div>
-              </div>
-              <div className="p-4">
-                <label className="text-sm font-medium block">Last AI Message Usage Metadata</label>
-                {messages && (() => {
-                  const lastAiMessage = messages.findLast((msg) => msg.type === "ai");
-                  if (!lastAiMessage || !lastAiMessage.usage_metadata) return null;
-                  return (
-                    <div>
-                      <p className="text-sm italic">Input Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.input_tokens}</span></p>
-                      <p className="text-sm italic">Output Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.output_tokens}</span></p>
-                      <p className="text-sm italic">Total Tokens: <span className="pl-4">{lastAiMessage.usage_metadata.total_tokens}</span></p>
-                    </div>
-                  );
-                })()}
-              </div>
-              <div className="pl-4 pr-4 pt-4 pb-1">
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm mb-2 font-medium block">Select Messages Strategy</label>
-                    <Select value={messagesStrategy || ""} onValueChange={setMessagesStrategy}>
+                    <label className="text-sm font-medium mb-2 block">Select the SQL model</label>
+                    <Select value={sqlSelectedModel || ""} onValueChange={setSqlSelectedModel}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose an option..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="trim_count">Trim count</SelectItem>
-                        <SelectItem value="trim_tokens">Trim tokens</SelectItem>
-                        <SelectItem value="summarize">Summarize</SelectItem>
+                        <SelectItem value="openai/gpt-oss-120b">GPT OSS 120B</SelectItem>
+                        <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</SelectItem>
+                        <SelectItem value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick</SelectItem>
+                        <SelectItem value="moonshotai/kimi-k2-instruct-0905">Kimi K2 Instruct</SelectItem>
+                        <SelectItem value="qwen/qwen3-32b">Qwen 3 32B</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               </div>
-              <div className="pl-4 pr-4">
-                { (messagesStrategy === "trim_count" || messagesStrategy === "trim_tokens") && (
-                  <div>
-                    <p className="text-xs text-gray-500 pb-2 italic">Pass the last n { messagesStrategy === "trim_count" ? "messages" : messagesStrategy === "trim_tokens" ? "tokens" : "messages" } to the model</p>
-                    <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategyKeep(Number(e.target.value))} value={messageStrategyKeep} />
-                  </div>
-                )}
-                {messagesStrategy === "summarize" && (
-                  <div>
-                    <p className="text-xs text-gray-500 pb-2 italic">Kick off summarization after n messages</p>
-                    <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarize(Number(e.target.value))} value={messageStrategySummarize} />
-                    <p className="text-xs text-gray-500 pb-2 italic">Delete the first n messages after summarization</p>
-                      <input type="text" className="border border-gray-300 rounded-md p-2 w-full bg-white" placeholder="Enter your message" onChange={(e) => setMessageStrategySummarizeDelete(Number(e.target.value))} value={messageStrategySummarizeDelete} />
-                  </div>
-                )}
-              </div>
-              <div className="pl-4 pr-4 pt-4 pb-1">
+              <div className="p-4">
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm mb-2 font-medium block">Select Tools - ToolNode(Agentic)</label>
-                    <Select value={""}>
+                    <label className="text-sm font-medium mb-2 block">Select the analysis model</label>
+                    <Select value={analystSelectedModel || ""} onValueChange={setAnalystSelectedModel}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose tools for your assistant..." />
+                        <SelectValue placeholder="Choose an option..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(tools).map(([key, value]) => (
-                          <div key={value}>
-                            <Checkbox
-                              id={value}
-                              label={key}
-                              value={value}
-                              checked={selectedTools[key] === value}
-                              onChange={handleChange}
-                            />
-                          </div>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              <div className="pl-4 pr-4 pt-4 pb-1">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm mb-2 font-medium block">Select Tools - Separate Nodes(Workflow)</label>
-                    <Select value={""}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose tools for your assistant..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(workflowTools).map(([key, value]) => (
-                          <div key={value}>
-                            <Checkbox
-                              id={value}
-                              label={key}
-                              value={value}
-                              checked={selectedWorkflowTools[key] === value}
-                              onChange={handleWorkflowChange}
-                            />
-                          </div>
-                        ))}
+                        <SelectItem value="openai/gpt-oss-120b">GPT OSS 120B</SelectItem>
+                        <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</SelectItem>
+                        <SelectItem value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick</SelectItem>
+                        <SelectItem value="moonshotai/kimi-k2-instruct-0905">Kimi K2 Instruct</SelectItem>
+                        <SelectItem value="qwen/qwen3-32b">Qwen 3 32B</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

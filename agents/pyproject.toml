@@ -22,6 +22,11 @@ dependencies = [
     "langchain-experimental>=0.4.1",
     "deepagents>=0.3.1",
     "langchain-mcp-adapters>=0.2.1",
+    "langgraph-checkpoint-postgres>=3.0.2",
+    "psycopg>=3.3.2",
+    "awslabs-aws-documentation-mcp-server>=1.1.14",
+    "langchain-groq>=1.1.1",
+    "aegra-cli>=0.6.0",
 ]
 
 

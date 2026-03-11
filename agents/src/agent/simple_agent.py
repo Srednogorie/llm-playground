@@ -7,7 +7,6 @@ from langchain.messages import SystemMessage
 from langchain_community.document_loaders import WikipediaLoader
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
-from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -79,7 +78,14 @@ class State(MessagesState):
 
 @dataclass
 class ContextSchema:
-    model: Literal["gpt-5-nano", "claude-3-haiku-20240307", "gemma3:1b"]
+    token: str
+    model: Literal[
+        "openai/gpt-oss-120b",
+        "llama-3.3-70b-versatile",
+        "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "moonshotai/kimi-k2-instruct-0905",
+        "qwen/qwen3-32b",
+    ]
     temperature: float
     max_tokens: int
     messages_strategy: Literal["trim_count", "trim_tokens", "summarize"]
@@ -200,8 +206,8 @@ search_instructions = SystemMessage(
 )
 
 
-model = init_chat_model(configurable_fields="any")
-search_question_model = ChatOpenAI(model="gpt-5-nano", temperature=0)
+# model = init_chat_model(configurable_fields="any")
+search_question_model = ChatOpenAI(model="gpt-5-nano", temperature=0, disable_streaming=True)
 
 
 def search_web(state: State, runtime: Runtime[ContextSchema]):
@@ -292,34 +298,43 @@ def call_llm(runtime, system_message, messages, use_system_message):
     tools = [
         tool_input_map[name] for name in runtime.context.agentic_tools if name in tool_input_map
     ] if runtime.context.agentic_tools else []
+
+    model = init_chat_model(
+        model_provider="groq",
+        configurable_fields="any",
+        disable_streaming=True,
+    )
     call_model = model.bind_tools(tools) if tools else model
 
     if use_system_message:
         messages = system_message + messages
 
-    if runtime.context.model in ["gpt-5-nano", "claude-3-haiku-20240307"]:
-        return {
-            "messages": [
-                call_model.invoke(
-                    messages,
-                    config={
-                        "configurable": {
-                            "model": runtime.context.model,
-                            "temperature": runtime.context.temperature,
-                            "max_tokens": runtime.context.max_tokens
-                        }
-                    }
-                )
-            ]
-        }
-    elif runtime.context.model == "gemma3:1b":
-        ollama_model = ChatOllama(
-            model=runtime.context.model,
-            temperature=runtime.context.temperature,
-            num_predict=runtime.context.max_tokens,
-            base_url="http://172.20.0.1:11434"
+    # if runtime.context.model in ["gpt-5-nano", "claude-3-haiku-20240307"]:
+    messages = [
+        call_model.invoke(
+            messages,
+            config={
+                "configurable": {
+                    "model": runtime.context.model,
+                    "api_key": runtime.context.token,
+                    "temperature": runtime.context.temperature,
+                    "max_tokens": runtime.context.max_tokens
+                }
+            }
         )
-        return {"messages": [ollama_model.invoke(system_message + messages)]}
+    ]
+    print(f"MESSAGES: {messages}")
+    return {
+        "messages": messages
+    }
+    # elif runtime.context.model == "gemma3:1b":
+    #     ollama_model = ChatOllama(
+    #         model=runtime.context.model,
+    #         temperature=runtime.context.temperature,
+    #         num_predict=runtime.context.max_tokens,
+    #         base_url="http://172.20.0.1:11434"
+    #     )
+    #     return {"messages": [ollama_model.invoke(system_message + messages)]}
 
 
 def summarize_conversation(state: State, runtime: Runtime[ContextSchema]):
